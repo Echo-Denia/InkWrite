@@ -82,6 +82,37 @@ CONFUSABLE: dict[str, list[str]] = {
 FALLBACK = ["某", "该", "此", "其", "某", "该"]
 
 
+# ---------------------------------------------------------------- font check
+_glyph_cache: dict[str, set[int]] = {}
+
+
+def font_has(font_path: str, chars) -> set[int]:
+    """Codepoints of *chars* actually present in the font.
+
+    Many 形近字 are rare CJK (兲 亽 尐 氺 …) that a personal handwriting font
+    simply does not contain.  Rendering one of those makes XeLaTeX emit a
+    .notdef box — the little grey rectangle that used to show up next to
+    crossed-out characters.  So every candidate is checked against the real
+    font before it can be used as the "wrong" character.
+    """
+    key = str(font_path)
+    if key not in _glyph_cache:
+        present: set[int] = set()
+        try:
+            from fontTools.ttLib import TTFont
+
+            f = TTFont(font_path, lazy=True)
+            present = set(f.getBestCmap().keys())
+            f.close()
+        except Exception:
+            present = set()  # unknown -> caller keeps everything
+        _glyph_cache[key] = present
+    have = _glyph_cache[key]
+    if not have:
+        return {ord(c) for c in chars}  # can't verify; don't filter
+    return {ord(c) for c in chars if ord(c) in have}
+
+
 def _variants(char: str) -> list[str]:
     """Candidate wrong characters for a given correct character."""
     v = CONFUSABLE.get(char)
@@ -93,7 +124,7 @@ def _variants(char: str) -> list[str]:
     return [c for c in v if len(c) == 1 and c != char]
 
 
-def inject_mistakes(tex: str, rate: float, rng) -> tuple[str, int]:
+def inject_mistakes(tex: str, rate: float, rng, font_path: str = "") -> tuple[str, int]:
     """Replace a fraction of CJK characters with a confusable wrong char,
     struck through with \\cancel (slash) or \\xcancel (cross), plus the right
     character written next to it.
@@ -112,6 +143,13 @@ def inject_mistakes(tex: str, rate: float, rng) -> tuple[str, int]:
     # Lines we must never touch: commands, headings, and anything with math.
     skip_re = re.compile(r"^\s*\\|[\$]|\\begin\{|\\end\{")
 
+    # Pre-filter the wrong-character pool against the real font so a missing
+    # glyph can never turn into a grey .notdef rectangle.
+    usable_fallback: list[str] | None = None
+    if font_path:
+        ok = font_has(font_path, FALLBACK)
+        usable_fallback = [c for c in FALLBACK if ord(c) in ok]
+
     injected = 0
     out_lines: list[str] = []
 
@@ -122,7 +160,14 @@ def inject_mistakes(tex: str, rate: float, rng) -> tuple[str, int]:
         chars = list(ln)
         for i, ch in enumerate(chars):
             if "\u4e00" <= ch <= "\u9fff" and rng.random() < rate:
-                alts = _variants(ch) or FALLBACK
+                alts = _variants(ch)
+                if font_path:
+                    ok = font_has(font_path, alts)
+                    alts = [c for c in alts if ord(c) in ok]
+                if not alts:
+                    alts = usable_fallback or FALLBACK
+                if not alts:
+                    continue  # nothing safe to use -> skip this one
                 wrong = rng.choice(alts)
                 # a single lazy slash reads as a real correction; a full cross
                 # looks like an annotation, so keep it rare

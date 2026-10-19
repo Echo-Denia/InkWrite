@@ -234,6 +234,10 @@ python -m iwlib.cli "math.pdf" -o out --math-symbols --math-delimiters
 - **随机化**：`jit_size`(字号 ±5.5%)、`jit_gap`(字距 px，默认 1.4)、`jit_line_gap`(行距随机游走 px，默认 3.0)
 - **扰动强度**：`jit_dx` / `jit_dy`(px)、`jit_rot`(度)、`jit_scale`(比例)、`jit_alpha_min`
 - **错字涂改**：`error_rate`(默认 3%)。在 LaTeX 层注入：随机把某个汉字换成形近错字（内置形近字表），用 `\cancel` 斜杠划掉，旁边（前或后随机）补上正确字。标题和公式内不注入
+  - **不会画出灰方块**：形近字表里很多是生僻字（`兲 亽 尐 氺 釒 …`），个人手写字体通常**没有这些字形**，
+    XeLaTeX 会渲染成 `.notdef`（一小块灰色空方框）。`iwlib/mistake.py` 现在会**先查字体再选错字**
+    （`font_has()`），只从字体真正含有的码位里挑；实测注入的错字缺失数 6 → **0**。
+    换字体后自动生效，无需改字表。
 - **纸张质感**：`bg_gradient`(纸色)、`noise_sigma`、`blur_radius`、`jitter_rot`(整页旋转)
 - **抄写遍数**：`repeat`（默认 1）。同 `--repeat`，重复进同一文本流，遍与遍之间不留空页
 - **手写体放大**：`font_scale`（默认 1.0）。同 `--font-scale`，走 `fontspec Scale=`，不改字体度量

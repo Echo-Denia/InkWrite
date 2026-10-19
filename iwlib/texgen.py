@@ -368,7 +368,9 @@ def render_document(cfg: Config, doc: Document) -> str:
         from .mistake import inject_mistakes
         import random as _random
         rng = _random.Random()
-        body, n_mist = inject_mistakes(body, cfg.error_rate, rng)
+        body, n_mist = inject_mistakes(
+            body, cfg.error_rate, rng, font_path=str(cjk_file)
+        )
         if n_mist:
             log.debug("injected %d mistake(s)", n_mist)
 
