@@ -35,6 +35,16 @@ def build_config(args: argparse.Namespace) -> Config:
         cfg.latin_font_file = str(Path(args.font_latin))
     if args.font_scale is not None:
         cfg.font_scale = float(args.font_scale)
+    if args.repeat is not None:
+        if args.repeat < 1:
+            log.warning("--repeat must be >= 1, using 1")
+            cfg.repeat = 1
+        else:
+            cfg.repeat = int(args.repeat)
+    if args.math_symbols is not None:
+        cfg.handwrite_math_symbols = bool(args.math_symbols)
+    if args.math_delimiters is not None:
+        cfg.handwrite_math_delimiters = bool(args.math_delimiters)
     if args.ink:
         cfg.ink_color = args.ink
     if args.skip_ocr:
@@ -204,6 +214,18 @@ def main(argv: list[str] | None = None) -> int:
                    help="prefer ModelScope mirrors for MinerU model downloads")
     p.add_argument("--merge", action="store_true",
                    help="merge all input documents into a single output (folder input only)")
+    p.add_argument("--math-delimiters", action=argparse.BooleanOptionalAction, default=None,
+                   help="also render stretchy delimiters (| used by determinants) with the "
+                        "handwriting font. WARNING: bitmap handwriting fonts cannot stretch, "
+                        "so bars stay short (default off = printed full-height bars)")
+    p.add_argument("--math-symbols", action=argparse.BooleanOptionalAction, default=None,
+                   help="render math operators/relations/sums/arrows with the handwriting "
+                        "font instead of Latin Modern Math (default off)")
+    p.add_argument("--repeat", type=int, default=None,
+                   help="write the content out this many times (抄几遍). With --merge the "
+                        "copies go into one continuous stream, so the next copy continues "
+                        "on the leftover space of the previous last page instead of "
+                        "starting a fresh sheet (default 1)")
     args = p.parse_args(argv)
 
     cfg = build_config(args)

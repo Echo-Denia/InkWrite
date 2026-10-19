@@ -44,11 +44,11 @@
   <button id="exportZip" disabled>③ 导出为 zip</button>
   <label>笔刷 <input type="range" id="brush" min="2" max="40" value="10"><span id="brushV">10</span>px</label>
   <label><input type="range" id="zoom" min="1" max="8" value="3"><span id="zoomV">3×</span> 放大</label>
-  <span class="stat">点击格子放大编辑 · 拖拽涂抹擦除 · 右键/Shift 恢复</span>
+  <span class="stat">点击格子放大编辑 · 拖拽涂抹擦除 · Shift+左键 用黑墨补充 · <kbd>Ctrl+S</kbd> 保存全部</span>
 </div>
 <div class="hint">
   说明：自动清理只删「四角模板标签 + 贴边网格线」（绝不会误杀笔画）。其余残留（如 正/水 下方的基线横线、角落小点）请用鼠标涂抹擦除。
-  在放大窗口里 <b>左键拖拽=擦除(涂白)</b>，<b>右键/Shift+左键=恢复(涂黑)</b>。支持键盘 <kbd>[</kbd><kbd>]</kbd> 调笔刷、<kbd>Ctrl+Z</kbd> 撤销。
+   在放大窗口里 <b>左键拖拽=擦除(涂白)</b>，<b>Shift+左键=用黑墨补充(涂黑)</b>（为避免与浏览器右键菜单冲突，已取消右键涂黑）。支持键盘 <kbd>[</kbd><kbd>]</kbd> 调笔刷、<kbd>Ctrl+Z</kbd> 撤销、<kbd>Ctrl+S</kbd> 保存全部修改。
 </div>
 
 <div class="grid" id="grid"></div>
@@ -112,7 +112,9 @@ function renderGrid(){
     const m = document.createElement('div');
     m.className='meta';
     const cp = f.name.replace(/\.png$/,'');
-    m.textContent = (cp in charNames? charNames[cp] : '') + ' U+'+hex(cp) + (f.dirty?' •':'');
+    const code = parseInt(cp,10);
+    const ch = isNaN(code)? '' : String.fromCodePoint(code);
+    m.textContent = (cp in charNames? charNames[cp] : '') + (ch? ' “'+ch+'” ' : '') + ' U+'+hex(cp) + (f.dirty?' •':'');
     cell.appendChild(c); cell.appendChild(m);
     grid.appendChild(cell);
   }
@@ -171,7 +173,9 @@ function openEditor(f){
   big.width=f.canvas.width*z; big.height=f.canvas.height*z;
   curCtx.imageSmoothingEnabled=false;
   redrawBig();
-  document.getElementById('edTitle').textContent = f.name;
+  const cp2 = f.name.replace(/\.png$/,''); const code2 = parseInt(cp2,10);
+  const ch2 = isNaN(code2)? '' : String.fromCodePoint(code2);
+  document.getElementById('edTitle').textContent = (ch2? ch2+' · ':'') + f.name;
   editor.classList.add('show');
   syncBrush();
 }
@@ -194,7 +198,7 @@ function paint(e){
   curCtx.fill();
 }
 big.addEventListener('pointerdown', e=>{ drawing=true;
-  mode = (e.button===2 || e.shiftKey) ? 'restore' : 'erase';
+  mode = e.shiftKey ? 'restore' : 'erase';
   pushUndo(); paint(e); big.setPointerCapture(e.pointerId); });
 big.addEventListener('pointermove', paint);
 big.addEventListener('pointerup', ()=>{ if(drawing){ drawing=false; commitBig(); } });
@@ -254,6 +258,9 @@ document.getElementById('openFiles').onclick=()=>{
   inp.click();
 };
 document.getElementById('autoCorner').onclick=autoCornerClean;
+document.addEventListener('keydown', e=>{
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='s'){ e.preventDefault(); document.getElementById('saveAll').click(); }
+});
 document.getElementById('brush').oninput=e=>{ document.getElementById('brushV').textContent=e.target.value;
   const b2=document.getElementById('brush2'); b2.value=Math.max(2,Math.round(e.target.value*1.4)); syncBrush(); };
 document.getElementById('brush2').oninput=syncBrush;

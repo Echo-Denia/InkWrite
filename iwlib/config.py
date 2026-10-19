@@ -77,6 +77,22 @@ class Config:
     # font's advance/UPM breaks XeLaTeX glyph rendering).
     font_scale: float = 1.0
 
+    # --- math symbols in handwriting ---
+    # Map math operators/relations/big operators onto the handwriting font
+    # (=, <, >, +, -, x, sum, neq, arrows ...) instead of leaving them on
+    # Latin Modern Math.  Off by default: the historical look keeps operators
+    # printed, which reads clearly for maths-heavy pages.  Turn on only when
+    # the handwriting font actually provides those glyphs.
+    handwrite_math_symbols: bool = False
+
+    # --- stretchy math delimiters (determinant bars) ---
+    # | \lvert \rvert \vert \mid used by \left| ... \right|.  A handwriting
+    # font built from bitmaps has no extensible/variant glyph data, so these
+    # cannot stretch and a determinant shows two short stubs instead of
+    # full-height bars.  Off by default = keep the printed bars (correct
+    # height).  Turn on only if you accept short, non-stretching bars.
+    handwrite_math_delimiters: bool = False
+
     # --- MinerU ---
     mineru_bin: str = "mineru"  # CLI name; "mineru" or "mineru-kit"
     mineru_tier: str = "standard"
@@ -85,6 +101,13 @@ class Config:
 
     # --- merge ---
     merge_docs: bool = False  # merge multiple input docs into one output
+
+    # --- repetitions ---
+    # How many times the content is copied out ("抄几遍").  1 = normal single
+    # pass.  With merge_docs the copies are concatenated into the SAME stream,
+    # so LaTeX keeps flowing: pass 2 starts wherever pass 1's last page ended
+    # (mid-page if there is room) instead of forcing a new sheet.
+    repeat: int = 1
 
     # --- job persistence ---
     work_dir: Path = field(default_factory=lambda: PROJECT_ROOT / "work")
@@ -113,6 +136,12 @@ class Config:
             cfg.latin_font_file = env["HW_FONT_LATIN"]
         if env.get("HW_FONT_SCALE"):
             cfg.font_scale = float(env["HW_FONT_SCALE"])
+        if env.get("HW_REPEAT"):
+            cfg.repeat = int(env["HW_REPEAT"])
+        if env.get("HW_MATH_SYMBOLS"):
+            cfg.handwrite_math_symbols = env["HW_MATH_SYMBOLS"].lower() in ("1", "true", "yes")
+        if env.get("HW_MATH_DELIMS"):
+            cfg.handwrite_math_delimiters = env["HW_MATH_DELIMS"].lower() in ("1", "true", "yes")
         if env.get("HW_INK"):
             cfg.ink_color = env["HW_INK"]
         if env.get("HW_MERGE"):

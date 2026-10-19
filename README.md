@@ -7,13 +7,12 @@
 
 > **💡 关于本项目的定位**
 >
-> - **免费、开源**：不按纸张 / 页数 / 字数 / 会员等任何标准收费，本地运行，没有云端计费墙。
->   网上许多同类手写工具按纸张 / 页数 / 会员收费，或虽免费却是封闭的在线服务；
->   而墨书把全部代码与流程交给你，可自由部署、修改、离线使用。
+> - **免费、开源**：以 CC BY-NC 4.0 协议发布，可自由部署、修改、离线使用，不按纸张 / 页数 / 字数 / 会员等任何标准收费，也没有云端计费墙。
+>   相比之下，网上多数同类手写工具是封闭的在线服务、按用量计费；墨书把全部代码与流程交给使用者。
 > - **数学有特殊优化**：得益于底层走 **XeLaTeX** 排版，公式（行列式、分式、积分、矩阵等）由真正的 TeX 数学引擎渲染，
 >   而非简单套字体或贴图，结构 100% 保真（详见[数学优化](#数学优化得益于-xelatex)）。
-> - **赠品 · 手写字体录入工具**：「纸笔手写 → 拍照 → 生成 TTF」的字体制作工具，随本项目免费附带。
->   用它做出你自己的手写字体后，可直接喂给手写稿生成器，生成「你本人笔迹」的手写稿。
+> - **附带的手写字体制作工具**：「纸笔手写 → 拍照 → 生成 TTF」的字体制作工具，也随本项目开源。
+>   用它生成你自己的手写字体后，可直接喂给手写稿生成器，产出「你本人笔迹」的手写稿。
 
 本项目包含两部分：
 
@@ -57,9 +56,12 @@
 - **Python 3.10–3.13**
 - `pip install fitz pymupdf pillow numpy scipy`（注意：`fitz` 即 `PyMuPDF`，见[依赖声明](#三许可协议与依赖声明)）
 - **TeX Live**（xelatex 必需），需要 `ctex`、`mathastext`（`tlmgr install mathastext`）
-- 手写字体：默认使用 `fonts/handwrite-font.ttf`（=「我爱万伟伟手写体」，用户提供）
-  - 可换：`--font-cjk` / `--font-latin` 指定任意 TTF/OTF（**必须用文件名加载**，家族名会导致 mathastext 失效）
-  - 备选：`fonts/LXGWWenKai-Regular.ttf`（霞鹜文楷，OFL）、`C:/Windows/Fonts/STKAITI.TTF`
+- 手写字体：**本仓库不附带任何字体**（`*.ttf` 已 gitignore），需自备，用
+  `--font-cjk` / `--font-latin` 指定任意 TTF/OTF（**必须用文件名加载**，家族名会导致
+  mathastext 失效）。
+  - 自己制作：用 [手写字体制作工具](#二手写字体制作工具handfont) 生成专属字体。
+  - 临时试用：可用系统自带中文字体，例如 `C:/Windows/Fonts/STKAITI.TTF`（楷体）。
+  - 字体**必须含空格字形 U+0020**，否则 XeLaTeX 会整篇缺字。
 - **MinerU**（可选，仅扫描件 / 含公式的 PDF 需要）：
   - `pip install mineru`（4.x 用 `mineru-kit parse`，2.x 用 `mineru -p`，脚本自动识别）
   - 建议设置 `MINERU_MODEL_SOURCE=modelscope`（默认已开启，国内下载快）
@@ -90,6 +92,9 @@ python -m iwlib.cli "path/to/folder" -o output
 # 自定义选项
 python -m iwlib.cli "doc.pdf" -o output --bg lined --dpi 300 --ink "#2B2A29"
 python -m iwlib.cli "doc.pdf" -o output --bg grid --font-cjk "C:\fonts\MyHan.ttf"
+
+# 合并整个文件夹 + 抄 3 遍 + 手写体放大 1.15 + 数学符号用手写体
+python -m iwlib.cli "path/to/folder" -o output --merge --repeat 3 --font-scale 1.15 --math-symbols
 ```
 
 ## 参数
@@ -99,12 +104,109 @@ python -m iwlib.cli "doc.pdf" -o output --bg grid --font-cjk "C:\fonts\MyHan.ttf
 | `-o, --out`    | `./output` | 输出目录                                          |
 | `--bg`         | `plain`    | 背景纸：`plain` / `lined`（横线）/ `grid`（格子） |
 | `--dpi`        | `300`      | 输出分辨率                                        |
-| `--font-cjk`   | STKaiti    | 中文手写字体文件                                  |
-| `--font-latin` | STXingkai  | 拉丁 / 公式字母手写字体文件                       |
+| `--font-cjk`   | 见下       | 中文手写字体文件（TTF/OTF）                       |
+| `--font-latin` | 见下       | 拉丁 / 公式字母手写字体文件（TTF/OTF）            |
+| `--font-scale` | `1.0`      | 手写字体相对 Latin Modern 数学符号的放大倍数       |
 | `--ink`        | `#2B2A29`  | 墨色（非纯黑更真实）                              |
 | `--tier`       | `standard` | MinerU 档位                                       |
 | `--skip-ocr`   | off        | 扫描件不 OCR 直接失败（省去 MinerU 下载）         |
 | `--modelscope` | on         | MinerU 模型从 ModelScope 下载                     |
+| `--merge`      | off        | 把文件夹里所有文档合并成**一个** PDF              |
+| `--repeat N`   | `1`        | 抄 N 遍（内容重复 N 次）                          |
+| `--math-symbols` | off      | 数学符号也用手写体（见下）                        |
+| `--math-delimiters` | off    | 行列式竖线 `\|` 也用手写体（**不建议**，见下）    |
+
+> **默认字体**：`--font-cjk` / `--font-latin` 默认指向 `handfont/` 下你自己做的手写字体
+> （`iwlib/config.py` 里的 `cjk_font_file` / `latin_font_file`）。
+>
+> ⚠️ **本仓库不附带任何 TTF/OTF 字体**：所有 `*.ttf` 已按 `.gitignore` 排除
+> （个人笔迹不入库）。克隆仓库后默认字体**并不存在**，必须用 `--font-cjk`
+> 显式指定你自己的字体，或先用
+> [手写字体制作工具](#二手写字体制作工具handfont) 生成一份。
+>
+> 另外字体**必须含空格字形 U+0020**，否则 XeLaTeX 会整篇缺字（详见
+> [局限](#局限)）。
+
+### `--repeat N`：抄 N 遍
+
+把正文重复 N 遍写进**同一个连续的文本流**（不在副本之间插入 `\newpage`/`\clearpage`），
+因此 TeX 用自己的排版器整体重排：
+
+- 第 2 遍会**接着第 1 遍最后一页剩下的版面继续写**，不会另起一张纸；
+- 与 `--merge` 一起用时，多份文档 + 多遍全部拼成**一个 PDF**；
+- 错字涂改只在生成「第一遍」时注入一次，再整体重复，所以每遍的涂改位置一致
+  （像真的把同一段重抄一遍）。
+
+```powershell
+python -m iwlib.cli "notes.tex" -o out --merge --repeat 3
+```
+
+### `--font-scale`：让手写体不显得小
+
+手写字的笔画在 em 框里占比天然比印刷体小，直接和 Latin Modern 的数学符号混排时会偏小。
+**正确做法是给 fontspec 传 `Scale=`：不要改 TTF 的 `unitsPerEm`/升降部**——改字体内部的
+度量会让 XeLaTeX 的字形渲染出问题（缺字、基线错位）。
+
+```powershell
+python -m iwlib.cli "notes.tex" -o out --font-scale 1.15
+```
+
+### `--math-symbols`：数学符号也用手写体
+
+默认**关闭**：为了让公式可读，运算符 / 关系符 / 括号 / 大运算符 / 箭头 / 希腊字母
+都保留 Latin Modern Math（`range` 只映射了 `up/{latin,num}`，即字母和数字）。
+打开后这些符号改用手写字体，前提是**你的字体确实含有这些字形**
+（用 fontTools 查 `TTFont(...).getBestCmap()` 即可；一份完整的手写字体通常含
+括号、`= + - × ÷ ± ≠ ≈ ≤ ≥ → ∈`、`∑ ∏ ∫ √ ∞`、希腊字母等）。
+
+另有两个前提要注意：
+
+- **标点不会被映射**：见下，`,` `.` `;` `!` `?` 只能沿用 Latin Modern。
+- **没写过的字会是印刷体**：模板上留空的格子（如 `j`、`.`、`:`、`'`、空格 U+0020 等
+  在纸上"写不出来"的字符）会由**系统字体兜底**渲染成印刷体。可在
+  `data/glyphs_merged/merge_manifest.csv` 里查每个字的来源
+  （`hand` 手写 / `ai:...` AI 补 / `font:simsun.ttc` 印刷兜底）。
+- **半角 vs 全角标点**：手写里没必要严格区分，所以 `scripts/12_remap_punct.py`
+  会把**半角码位指向你已经写好的全角/中文标点**（`.` ← `。`、`，` `、`'` ← `’`、
+  `:` ← `：`，`j` 用 AI 版本），避免这几处冒出印刷体。注意顺序：
+  **先跑 `11_merge_and_build.py` 填充 `data/glyphs_merged`，再跑 `12_remap_punct.py`，
+  最后直接调 `05_build_pixel_font.py --glyphs data/glyphs_merged` 重建字体**
+  ——因为 `11` 启动时会清空 `data/glyphs_merged`，先替换会被冲掉。
+
+```powershell
+python -m iwlib.cli "math.pdf" -o out --math-symbols
+```
+
+> 注意：密集公式换成手写符号后**可读性会下降**，建议正文作业开，纯演算草稿可关掉。
+> unicode-math 的 `range` 只接受真实命令名。已实测**无效**的名字（会报 "not recognised"
+> 或 "Undefined control sequence"）：
+> `\plus \neq \to \semicolon \period \comma \exclam \question \beta \pi \mu \dots \degree \iff
+> \mathminus \unaryminus \binaryminus \ellipsis \dots`。
+> 其中 **`+` 的正确名字是 `\mathplus`**（`\plus` 无效），省略号用 `\ldots \cdots \vdots \ddots`。
+
+#### 加号 / 减号 / 省略号的两个坑
+
+- **减号**：数学模式输出的是**真减号 U+2212**，而模板上写的是**连字符 U+002D**，
+  两者不同码位。字体里若只有 U+002D，公式里的负号就会退回印刷体。
+  `handfont/fix_minus.py` 会把 U+2212 补上（直接复用你写的连字符字形，二者都是一横）。
+- **省略号**：`\ldots` 才是有效名（`\dots` / `\ellipsis` 无效），映射后指向 U+2026。
+
+验证方式：分别用/不用该 range 渲染 `$a + b - c \ldots d$`，比较墨量与形状是否不同。
+> 因此**标点（`,` `.` `;` `!` `?`）无法经 range 映射**，只能沿用 Latin Modern；代码里
+> 已改用经验证的名字（`\minus \ne \rightarrow` …）。
+
+### `--math-delimiters`：行列式的竖线（**默认关，建议保持关**）
+
+`\left| ... \right|`（行列式）用的 `|` 是**可拉伸定界符**。位图生成的手写字体没有
+`MATH` 表的**可延展/变体字形数据**，无法随内容变高，结果 4 行行列式左右只剩**两小截短竖线**：
+实测手写竖线只有 99px（占内容高 8%），而 Latin Modern 是 288px（24%）。
+
+所以 `| \lvert \rvert \vert \mid` 默认**保留印刷体**（保证竖线拉满）。若你确实想要手写竖线
+并接受它拉不长，可显式打开：
+
+```powershell
+python -m iwlib.cli "math.pdf" -o out --math-symbols --math-delimiters
+```
 
 ## 调参
 
@@ -116,6 +218,9 @@ python -m iwlib.cli "doc.pdf" -o output --bg grid --font-cjk "C:\fonts\MyHan.ttf
 - **扰动强度**：`jit_dx` / `jit_dy`(px)、`jit_rot`(度)、`jit_scale`(比例)、`jit_alpha_min`
 - **错字涂改**：`error_rate`(默认 3%)。在 LaTeX 层注入：随机把某个汉字换成形近错字（内置形近字表），用 `\cancel` 斜杠划掉，旁边（前或后随机）补上正确字。标题和公式内不注入
 - **纸张质感**：`bg_gradient`(纸色)、`noise_sigma`、`blur_radius`、`jitter_rot`(整页旋转)
+- **抄写遍数**：`repeat`（默认 1）。同 `--repeat`，重复进同一文本流，遍与遍之间不留空页
+- **手写体放大**：`font_scale`（默认 1.0）。同 `--font-scale`，走 `fontspec Scale=`，不改字体度量
+- **手写数学符号**：`handwrite_math_symbols`（默认 False）。同 `--math-symbols`
 
 ## 输出结构
 
@@ -147,18 +252,18 @@ work/<文档名>/        # 中间产物：ir.json / handwrite.tex / raster/
 python -m iwlib.cli "paper.tex" -o output
 ```
 
-> 与「按纸张/页数收费」的在线工具不同，墨书本地运行、完全免费：你写多厚的数学习题集都不用多付一分钱，
-> 而且能直接生成你**自己笔迹**的手写公式（配合下面的手写字体工具）。
+> 墨书本地运行、完全免费：无论生成多厚的数学手写稿都不产生任何费用，
+> 而且能直接生成**自己笔迹**的手写公式（配合下面的手写字体工具）。
 
 ---
 
 # 二、手写字体制作工具（handfont）
 
-用「纸 + 拍照」把你自己的真实笔迹做成可安装的 TTF 字体。整个流程的分工是：
-**你只负责产出高质量的纸和照片，剩下的全是机械活**（脚本完成）。
+用「纸 + 拍照」把自己的真实笔迹做成可安装的 TTF 字体。整个流程的分工是：
+使用者只需产出高质量的纸和照片，其余的切图、组装、质检等机械性工作全部由脚本完成。
 
-> 本仓库只保留你自己编写的部分（脚本、字符集清单、打印模板、一键脚本、依赖说明）。
-> 你的个人手写字照片 / 切图 / 质检产物不入库；**AI 补字**相关代码与第三方模型也**不入库**（见[许可协议](#三许可协议与依赖声明)）。
+> 本仓库只保留可再生的部分（脚本、字符集清单、打印模板、一键脚本、依赖说明）。
+> 个人手写字照片 / 切图 / 质检产物不入库；**AI 补字**相关代码与第三方模型也**不入库**（见[许可协议](#三许可协议与依赖声明)）。
 
 ## 安装依赖
 
@@ -167,18 +272,18 @@ conda activate moreother
 uv pip install --index-url https://pypi.tuna.tsinghua.edu.cn/simple -r handfont/requirements.txt
 ```
 
-- 自检：`python -c "import cv2,fontTools; print(hasattr(cv2,'aruco'))"` 必须输出 `True`
-  （`aruco` 为 False 说明装成了 `opencv-python`，重装 `opencv-contrib-python`）。
+- 自检：`python -c "import cv2,fontTools; print(hasattr(cv2,'aruco'))"` 应输出 `True`
+  （若 `aruco` 为 False，说明装成了 `opencv-python`，需重装 `opencv-contrib-python`）。
 - **矢量化模式**（可选，出片体积更小）需要 `potrace`。Linux：`apt install potrace`；
   Windows 工程已附带便携版 `handfont/lib/potrace-1.16.win64/`，`04` 会自动加进 PATH。
   没有 potrace 也能跑，会自动退化成 OpenCV 轮廓（笔画边缘偏硬）。
 - 本流程**用不上 GPU**（纯 CPU 图像处理）；AI 补字才需要，见下文。
 
-## 制作流程（你自己写的字）
+## 制作流程（使用者自己写的字）
 
 ### 第 0 步：决定规模
 
-| 路线               | 你要写              | 预计耗时    | 结果                                                     |
+| 路线               | 需书写              | 预计耗时    | 结果                                                     |
 | ------------------ | ------------------- | ----------- | -------------------------------------------------------- |
 | **Tier0 启动集**   | 866 个（6 页）      | 2–3 小时    | 高频 500 汉字 + 英文 + 数学符号 + 希腊字母，日常打字够用 |
 | **Tier1 常用全集** | 4311 个（29 页）    | 12–20 小时  | GB2312 全部 3755 常用字，覆盖 99.75% 日常用字            |
