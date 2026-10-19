@@ -1,0 +1,85 @@
+# =====================================================================
+# handwrite 项目 .gitignore
+# 说明：本仓库只提交「我们自己编写的代码与可再生的产物」，
+#       用户个人手写字数据、AI 补字（第三方模型）等一律忽略。
+# 注意：gitignore 不支持行内注释，注释必须独占一行。
+# =====================================================================
+
+# ---- 全局：已忽略的产物 / 目录 ----
+work/
+fonts/
+线代/
+2/
+*.ttf
+# 矢量化工具 potrace 便携版随工程附带（GPLv2，保留）
+# 仅忽略第三方模型目录，potrace 必须保留
+handfont/lib/fontdiffuser/
+*.png
+# Python 缓存 / 临时产物
+__pycache__/
+*.pyc
+handfont/scripts/__pycache__/
+handfont/lib/__pycache__/
+
+# =====================================================================
+# handfont/ 手写字体工程
+# =====================================================================
+
+# --- 1) AI 补字（依赖第三方模型 FontDiffuser，非本人编写，整体忽略）---
+# FontDiffuser 模型源码（克隆自 yeungchenwa/FontDiffuser）
+handfont/lib/fontdiffuser/
+# FontDiffuser / SCR 官方预训练权重（他人模型）
+handfont/ckpt/
+# AI 训练 / 微调 / 验证产物
+handfont/data/aifill/
+# 增强训练集
+handfont/data/aifill_aug/
+# AI 生成字（Tier1 补缺）
+handfont/data/glyphs_ai/
+# AI 生成字（Tier2 全量）
+handfont/data/glyphs_ai_t2/
+# 合并后最终字形（含 AI 字）
+handfont/data/glyphs_merged/
+# AI 补齐后的完整字体（含第三方模型产出）
+handfont/MyHand-Full.ttf
+# AI 完整字体预览（内嵌 MyHand-Full）
+handfont/preview.html
+# AI 字质检图墙
+handfont/review.html
+# AI 补字文档（描述第三方模型管线）
+handfont/README_AI补字.md
+
+# AI 补字相关脚本（驱动第三方模型，非本人编写的工具链）
+handfont/scripts/07_build_aifill_dataset.py
+handfont/scripts/07b_augment_dataset.py
+handfont/scripts/08_finetune.py
+handfont/scripts/09_validate_backfill.py
+handfont/scripts/10_generate_missing.py
+handfont/scripts/11_merge_and_build.py
+handfont/scripts/12_review_ai.py
+handfont/scripts/sample_preview.py
+handfont/scripts/sample_preview2.py
+
+# --- 2) 用户个人手写字数据（照片 / 切图 / 质检产物，非代码，体积大）---
+# 用户拍的模板照片
+handfont/data/photos/
+# 切出来的单字位图
+handfont/data/glyphs/
+# glyph_manifest / missing / review_flags 等
+handfont/data/*.csv
+# slice_report / check_report 等
+handfont/data/*.json
+# 手动修字页面
+# handfont/data/cleaner.html
+# 参考对照表（可由脚本再生）
+handfont/data/*_书写对照表.html
+
+# ---------------------------------------------------------------------
+# 以下「保留」：我们自己的脚本、字符集清单、打印模板、一键脚本、依赖说明。
+#   handfont/scripts/01~06        （建字符集 / 出模板 / 切图 / 组装 / 质检 / 对照表）
+#   handfont/charset/             （字符集清单，体积小、可核查）
+#   handfont/templates/           （PDF 模板 + layout.json，可打印）
+#   一键运行_*.bat / *.sh
+#   00_安装依赖.md / requirements.txt
+#   lib/potrace-1.16.win64/       （矢量化工具，GPLv2，随工程附带）
+# ---------------------------------------------------------------------

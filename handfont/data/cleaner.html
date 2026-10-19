@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>单字墨点清理工具 · Handfont Glyph Cleaner</title>
+<style>
+  :root { --bg:#1e1e1e; --fg:#ddd; --acc:#4aa3ff; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.5 system-ui, "Microsoft YaHei", sans-serif; background:var(--bg); color:var(--fg); }
+  header { padding:12px 16px; border-bottom:1px solid #333; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  header h1 { font-size:16px; margin:0; }
+  .toolbar { padding:10px 16px; border-bottom:1px solid #333; display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+  button { background:#333; color:#eee; border:1px solid #555; border-radius:6px; padding:6px 12px; cursor:pointer; }
+  button:hover { background:#444; }
+  button.primary { background:var(--acc); color:#062; border-color:var(--acc); color:#003; font-weight:600; }
+  label { display:flex; align-items:center; gap:6px; }
+  input[type=range] { width:120px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, 150px); gap:12px; padding:16px; }
+  .cell { background:#2a2a2a; border:1px solid #3a3a3a; border-radius:8px; padding:8px; text-align:center; }
+  .cell.sel { border-color:var(--acc); box-shadow:0 0 0 2px rgba(74,163,255,.3); }
+  .cell canvas { width:130px; height:130px; background:#fff; image-rendering:pixelated; border-radius:4px; cursor:crosshair; touch-action:none; }
+  .cell .meta { font-size:11px; color:#9a9a9a; margin-top:4px; word-break:break-all; }
+  .stat { color:#9a9a9a; font-size:12px; }
+  #editor { position:fixed; inset:0; background:rgba(0,0,0,.85); display:none; align-items:center; justify-content:center; flex-direction:column; gap:10px; z-index:10; }
+  #editor.show { display:flex; }
+  #big { background:#fff; image-rendering:pixelated; cursor:crosshair; touch-action:none; border:1px solid #555; max-width:80vw; max-height:75vh; }
+  #editorBar { display:flex; gap:12px; align-items:center; background:#222; padding:10px 16px; border-radius:8px; }
+  .hint { color:#9a9a9a; font-size:12px; padding:0 16px 12px; }
+  kbd { background:#333; border:1px solid #555; border-radius:4px; padding:1px 6px; font-size:11px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>单字墨点清理工具</h1>
+  <span class="stat" id="stat">未加载</span>
+</header>
+
+<div class="toolbar">
+  <button class="primary" id="openDir">① 打开 glyphs 文件夹（可写回）</button>
+  <button id="openFiles">① 或选择 PNG 文件</button>
+  <button id="autoCorner">② 自动清四角标签</button>
+  <button id="saveAll" disabled>③ 保存全部修改</button>
+  <button id="exportZip" disabled>③ 导出为 zip</button>
+  <label>笔刷 <input type="range" id="brush" min="2" max="40" value="10"><span id="brushV">10</span>px</label>
+  <label><input type="range" id="zoom" min="1" max="8" value="3"><span id="zoomV">3×</span> 放大</label>
+  <span class="stat">点击格子放大编辑 · 拖拽涂抹擦除 · 右键/Shift 恢复</span>
+</div>
+<div class="hint">
+  说明：自动清理只删「四角模板标签 + 贴边网格线」（绝不会误杀笔画）。其余残留（如 正/水 下方的基线横线、角落小点）请用鼠标涂抹擦除。
+  在放大窗口里 <b>左键拖拽=擦除(涂白)</b>，<b>右键/Shift+左键=恢复(涂黑)</b>。支持键盘 <kbd>[</kbd><kbd>]</kbd> 调笔刷、<kbd>Ctrl+Z</kbd> 撤销。
+</div>
+
+<div class="grid" id="grid"></div>
+
+<div id="editor">
+  <div id="editorBar">
+    <span id="edTitle">编辑</span>
+    <label>笔刷 <input type="range" id="brush2" min="2" max="60" value="14"><span id="brush2V">14</span>px</label>
+    <button id="edUndo">撤销</button>
+    <button id="edPrev">← 上一个</button>
+    <button id="edNext">下一个 →</button>
+    <button id="edClose" class="primary">完成并返回</button>
+  </div>
+  <canvas id="big"></canvas>
+</div>
+
+<script>
+let files = [];          // {name, handle, img, canvas, dirty}
+let baseDirHandle = null;
+const grid = document.getElementById('grid');
+const stat = document.getElementById('stat');
+
+function setStat(t){ stat.textContent = t; }
+
+async function loadDirectory(handle){
+  baseDirHandle = handle;
+  files = [];
+  for await (const [name, h] of handle.entries()){
+    if (h.kind === 'file' && /\.png$/i.test(name)){
+      const buf = await (await h.getFile()).arrayBuffer();
+      files.push(await makeEntry(name, buf, h));
+    }
+  }
+  files.sort((a,b)=>a.name.localeCompare(b.name, undefined, {numeric:true}));
+  renderGrid();
+  document.getElementById('saveAll').disabled = false;
+  document.getElementById('exportZip').disabled = false;
+  setStat(`已加载 ${files.length} 个字（可写回原文件夹）`);
+}
+
+async function makeEntry(name, buf, handle){
+  const blob = new Blob([buf]);
+  const img = await loadImage(URL.createObjectURL(blob));
+  const canvas = document.createElement('canvas');
+  canvas.width = img.width; canvas.height = img.height;
+  canvas.getContext('2d').drawImage(img,0,0);
+  return { name, handle, img, canvas, dirty:false };
+}
+
+function loadImage(src){ return new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=src; }); }
+
+function renderGrid(){
+  grid.innerHTML='';
+  for (const f of files){
+    const cell = document.createElement('div');
+    cell.className='cell';
+    const c = document.createElement('canvas');
+    c.width = f.canvas.width; c.height = f.canvas.height;
+    c.getContext('2d').drawImage(f.canvas,0,0);
+    c.onclick = ()=> openEditor(f);
+    const m = document.createElement('div');
+    m.className='meta';
+    const cp = f.name.replace(/\.png$/,'');
+    m.textContent = (cp in charNames? charNames[cp] : '') + ' U+'+hex(cp) + (f.dirty?' •':'');
+    cell.appendChild(c); cell.appendChild(m);
+    grid.appendChild(cell);
+  }
+}
+
+function hex(cp){ const n=parseInt(cp,10); return n.toString(16).toUpperCase().padStart(4,'0'); }
+
+// ---- 自动清四角标签 + 贴边网格线（保守，安全）----
+function autoCornerClean(){
+  let n=0;
+  for (const f of files){
+    const ctx=f.canvas.getContext('2d');
+    const w=f.canvas.width, h=f.canvas.height;
+    const d=ctx.getImageData(0,0,w,h); const p=d.data;
+    // 收集连通块
+    const idx=(x,y)=>y*w+x;
+    const seen=new Uint8Array(w*h);
+    const stack=[];
+    for (let s=0;s<w*h;s++){ if(seen[s]) continue; if(p[s*4]<128){ /*start comp*/ } else { seen[s]=1; continue; }
+      let comp=[]; stack.length=0; stack.push(s); seen[s]=1;
+      while(stack.length){ const cur=stack.pop(); comp.push(cur);
+        const x=cur%w, y=(cur/w|0);
+        for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const nx=x+dx, ny=y+dy;
+          if(nx<0||ny<0||nx>=w||ny>=h) continue; const ni=idx(nx,ny);
+          if(!seen[ni] && p[ni*4]<128){ seen[ni]=1; stack.push(ni); } } }
+      if(comp.length<24 || comp.length>=200) continue;
+      // 计算包围盒
+      let minx=w,miny=h,maxx=0,maxy=0;
+      for(const c of comp){ const x=c%w,y=(c/w|0); if(x<minx)minx=x; if(x>maxx)maxx=x; if(y<miny)miny=y; if(y>maxy)maxy=y; }
+      const bw=maxx-minx+1, bh=maxy-miny+1;
+      // 右下角标签：右 82% 且 下 62%
+      const xr=maxx, yb=maxy;
+      const corner = (xr > 0.82*w && yb > 0.62*h) || (minx < 0.18*w && yb > 0.62*h);
+      const gridLine = (bh<=3 && (miny<4 || maxy>h-4)) || (bw<=3 && (minx<4 || maxx>w-4));
+      if(corner || gridLine){
+        for(const c of comp){ p[c*4]=p[c*4+1]=p[c*4+2]=255; }
+        n++; f.dirty=true;
+      }
+    }
+    ctx.putImageData(d,0,0);
+  }
+  renderGrid();
+  setStat(`自动清除 ${n} 处四角/网格线残留。剩余请手动涂抹。`);
+}
+
+// ---- 编辑器 ----
+const editor=document.getElementById('editor');
+const big=document.getElementById('big');
+let cur=null, curCtx=null, drawing=false, mode='erase', undoStack=[];
+const zoomEl=document.getElementById('zoom');
+
+function openEditor(f){
+  cur=f; undoStack=[];
+  curCtx=big.getContext('2d');
+  const z=parseInt(zoomEl.value,10);
+  big.width=f.canvas.width*z; big.height=f.canvas.height*z;
+  curCtx.imageSmoothingEnabled=false;
+  redrawBig();
+  document.getElementById('edTitle').textContent = f.name;
+  editor.classList.add('show');
+  syncBrush();
+}
+function redrawBig(){ const z=parseInt(zoomEl.value,10); curCtx.clearRect(0,0,big.width,big.height);
+  const tmp=document.createElement('canvas'); tmp.width=cur.canvas.width; tmp.height=cur.canvas.height;
+  tmp.getContext('2d').drawImage(cur.canvas,0,0);
+  curCtx.drawImage(tmp,0,0,big.width,big.height);
+}
+function syncBrush(){ const b=parseInt(document.getElementById('brush2').value,10); document.getElementById('brush2V').textContent=b; }
+
+big.addEventListener('contextmenu', e=>e.preventDefault());
+function paint(e){
+  if(!drawing) return;
+  const r=big.getBoundingClientRect();
+  const x=(e.clientX-r.left)/r.width*big.width;
+  const y=(e.clientY-r.top)/r.height*big.height;
+  const b=parseInt(document.getElementById('brush2').value,10)*parseInt(zoomEl.value,10);
+  curCtx.beginPath(); curCtx.arc(x,y,b/2,0,Math.PI*2);
+  if(mode==='erase'){ curCtx.fillStyle='#fff'; } else { curCtx.fillStyle='#000'; }
+  curCtx.fill();
+}
+big.addEventListener('pointerdown', e=>{ drawing=true;
+  mode = (e.button===2 || e.shiftKey) ? 'restore' : 'erase';
+  pushUndo(); paint(e); big.setPointerCapture(e.pointerId); });
+big.addEventListener('pointermove', paint);
+big.addEventListener('pointerup', ()=>{ if(drawing){ drawing=false; commitBig(); } });
+big.addEventListener('pointercancel', ()=>{ drawing=false; });
+
+function pushUndo(){ undoStack.push(cur.canvas.toDataURL()); if(undoStack.length>30) undoStack.shift(); }
+function commitBig(){
+  // 把放大画布按比例缩回原尺寸写回 f.canvas
+  const tmp=document.createElement('canvas'); tmp.width=cur.canvas.width; tmp.height=cur.canvas.height;
+  tmp.getContext('2d').drawImage(big,0,0,cur.canvas.width,cur.canvas.height);
+  const ctx=cur.canvas.getContext('2d'); ctx.clearRect(0,0,cur.canvas.width,cur.canvas.height);
+  ctx.drawImage(tmp,0,0);
+  cur.dirty=true;
+}
+document.getElementById('edUndo').onclick=()=>{ if(!undoStack.length) return; const img=new Image(); img.onload=()=>{ const c=document.createElement('canvas'); c.width=cur.canvas.width; c.height=cur.canvas.height; c.getContext('2d').drawImage(img,0,0); const t=document.createElement('canvas'); t.width=big.width;t.height=big.height; t.getContext('2d').drawImage(c,0,0,big.width,big.height); curCtx.clearRect(0,0,big.width,big.height); curCtx.drawImage(t,0,0); }; img.src=undoStack.pop(); };
+document.getElementById('edPrev').onclick=()=>navRel(-1);
+document.getElementById('edNext').onclick=()=>navRel(1);
+document.getElementById('edClose').onclick=()=>{ editor.classList.remove('show'); renderGrid(); };
+function navRel(d){ const i=files.indexOf(cur); const j=(i+d+files.length)%files.length; openEditor(files[j]); }
+document.addEventListener('keydown', e=>{ if(!editor.classList.contains('show')) return;
+  if(e.key==='[') { const b=document.getElementById('brush2'); b.value=Math.max(2,b.value-2); syncBrush(); }
+  if(e.key===']') { const b=document.getElementById('brush2'); b.value=Math.min(60,b.value+2); syncBrush(); }
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){ document.getElementById('edUndo').click(); }
+  if(e.key==='ArrowLeft') navRel(-1); if(e.key==='ArrowRight') navRel(1); if(e.key==='Escape') document.getElementById('edClose').click();
+});
+
+// ---- 保存 ----
+document.getElementById('saveAll').onclick=async()=>{
+  if(!baseDirHandle){ alert('请用「打开 glyphs 文件夹」载入才能写回；否则用「导出为 zip」。'); return; }
+  let n=0;
+  for(const f of files){ if(!f.dirty) continue;
+    const blob=await new Promise(r=>f.canvas.toBlob(r,'image/png'));
+    const w=await baseDirHandle.getFileHandle(f.name,{create:false});
+    const wh=await w.createWritable(); await wh.write(blob); await wh.close(); f.dirty=false; n++;
+  }
+  renderGrid(); setStat(`已写回 ${n} 个 PNG 到原文件夹。然后重跑 04_build_font.py。`);
+};
+document.getElementById('exportZip').onclick=async()=>{
+  const zip=await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js').then(m=>m.default||m);
+  const z=new zip(); let n=0;
+  for(const f of files){ if(!f.dirty) continue; const blob=await new Promise(r=>f.canvas.toBlob(r,'image/png')); z.file(f.name,blob); n++; }
+  const b=await z.generateAsync({type:'blob'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b);
+  a.download='cleaned_glyphs.zip'; a.click(); setStat(`导出 ${n} 个已修改 PNG 为 zip。`);
+};
+
+// ---- 载入 ----
+document.getElementById('openDir').onclick=async()=>{
+  try{ const h=await window.showDirectoryPicker(); await loadDirectory(h); }
+  catch(e){ if(e.name!=='AbortError') alert('打开失败：'+e.message); }
+};
+document.getElementById('openFiles').onclick=()=>{
+  const inp=document.createElement('input'); inp.type='file'; inp.multiple=true; inp.accept='.png';
+  inp.onchange=async()=>{ files=[]; for(const file of inp.files){ const buf=await file.arrayBuffer(); files.push(await makeEntry(file.name, buf, null)); }
+    files.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true})); renderGrid();
+    document.getElementById('saveAll').disabled=false; document.getElementById('exportZip').disabled=false;
+    setStat(`已选择 ${files.length} 个 PNG（用「导出为 zip」拿回修改）`); };
+  inp.click();
+};
+document.getElementById('autoCorner').onclick=autoCornerClean;
+document.getElementById('brush').oninput=e=>{ document.getElementById('brushV').textContent=e.target.value;
+  const b2=document.getElementById('brush2'); b2.value=Math.max(2,Math.round(e.target.value*1.4)); syncBrush(); };
+document.getElementById('brush2').oninput=syncBrush;
+document.getElementById('zoom').oninput=e=>{ document.getElementById('zoomV').textContent=e.target.value+'×'; if(cur) redrawBig(); };
+
+// 字符名对照（可选，便于识别），缺失不影响
+const charNames={};
+</script>
+</body>
+</html>

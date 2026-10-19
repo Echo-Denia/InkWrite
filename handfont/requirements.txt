@@ -1,0 +1,6 @@
+opencv-contrib-python>=4.9      # 透视矫正 + ArUco 角标识别（必须是 contrib 版）
+numpy>=1.24
+reportlab>=4.0                  # 生成 A4 网格模板 PDF
+fonttools>=4.50                 # 组装 TTF（不依赖 FontForge，跨平台）
+pillow>=10.0
+tqdm>=4.66
