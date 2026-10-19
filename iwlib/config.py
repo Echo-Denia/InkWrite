@@ -20,8 +20,20 @@ class Config:
 
     # --- typography ---
     fontsize_pt: int = 22  # larger glyphs -> denser, fuller page
-    linespread: float = 1  # tight leading (handwriting is dense)
+    linespread: float = 0.5  # tight leading (handwriting is dense)
     margin_mm: int = 15
+
+    # --- letter spacing (字间距) ---
+    # Extra space inserted between characters, in units of em (1.0 = one
+    # character width at the current font size).
+    #   0.0  = default (no extra tracking)
+    #   0.05 = slightly loose, reads more like careful handwriting
+    #   0.15 = quite loose / spaced-out
+    # Implemented with xeCJK's CJKglue for CJK and \spaceskip for Latin;
+    # both are emitted in the preamble by texgen.render_document.
+    letter_spacing: float = -0.5
+    # Whether Latin text also gets the tracking (CJK always does).
+    letter_spacing_latin: bool = False
 
     # --- output raster ---
     dpi_render: int = 300  # resolution of the final handwritten image
@@ -139,9 +151,17 @@ class Config:
         if env.get("HW_REPEAT"):
             cfg.repeat = int(env["HW_REPEAT"])
         if env.get("HW_MATH_SYMBOLS"):
-            cfg.handwrite_math_symbols = env["HW_MATH_SYMBOLS"].lower() in ("1", "true", "yes")
+            cfg.handwrite_math_symbols = env["HW_MATH_SYMBOLS"].lower() in (
+                "1",
+                "true",
+                "yes",
+            )
         if env.get("HW_MATH_DELIMS"):
-            cfg.handwrite_math_delimiters = env["HW_MATH_DELIMS"].lower() in ("1", "true", "yes")
+            cfg.handwrite_math_delimiters = env["HW_MATH_DELIMS"].lower() in (
+                "1",
+                "true",
+                "yes",
+            )
         if env.get("HW_INK"):
             cfg.ink_color = env["HW_INK"]
         if env.get("HW_MERGE"):

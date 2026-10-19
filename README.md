@@ -212,7 +212,24 @@ python -m iwlib.cli "math.pdf" -o out --math-symbols --math-delimiters
 
 全部参数在 `iwlib/config.py`：
 
-- **排版密度**：`fontsize_pt`(默认 17，字大)、`linespread`(默认 1.18，行距挤)、`margin_mm`
+- **排版密度**：`fontsize_pt`(默认 22，字大)、`linespread`(默认 0.5，行距挤)、`margin_mm`
+- **字间距**：`letter_spacing`(默认 0.0)，单位 **em**（1.0 = 一个字宽），
+  **支持负值**：
+
+  | 值 | 效果 |
+  | --- | --- |
+  | `-0.10` | **收紧**（字挤在一起） |
+  | `0.0` | 默认 |
+  | `0.05` | 略松 |
+  | `0.15` | 明显疏朗 |
+
+  走 xeCJK 的 `CJKglue`（中文）+ `\spaceskip`（拉丁），随 `fontsize_pt` 自动缩放。
+  实测同一行（`pdftotext -bbox` 量字形跨度）：
+  `-0.10` → 100.8、`0.0` → 109.6、`+0.10` → 118.4，正负两个方向都生效。
+
+  实现要点：必须用 `\kern` 而不是 `\hspace`——**`\hspace` 不接受负值**（会被 clamp 或报错），
+  `\kern` 才能双向调整。
+  配套开关 `letter_spacing_latin`(默认 True) 可只让中文变、拉丁不变。
 - **手写感核心**：`jit_slant`(整页斜度，默认 4°)、`jit_line_rot`(行旋转)、`jit_baseline`(基线漂移 px)
 - **随机化**：`jit_size`(字号 ±5.5%)、`jit_gap`(字距 px，默认 1.4)、`jit_line_gap`(行距随机游走 px，默认 3.0)
 - **扰动强度**：`jit_dx` / `jit_dy`(px)、`jit_rot`(度)、`jit_scale`(比例)、`jit_alpha_min`
